@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-BASE_DIR = r"C:\coding\DSA"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 @app.route("/")
 def home():
@@ -22,6 +22,12 @@ def run_bst():
     subprocess.Popen(["python", path])
     return "BST launched"
 
+@app.route("/run/queue")
+def run_queue():
+    path = os.path.join(BASE_DIR, "programs", "queue.py")
+    subprocess.Popen(["python", path])
+    return "Queue launched"
+
 @app.route("/run/parking.2")  # Queue
 def run_parking_queue():
     path = os.path.join(BASE_DIR, "programs", "queue.py")
@@ -30,6 +36,12 @@ def run_parking_queue():
 
 @app.route("/run/parking")  # Stack
 def run_parking():
+    path = os.path.join(BASE_DIR, "programs", "stack.py")
+    subprocess.Popen(["python", path])
+    return "Stack launched"
+
+@app.route("/run/stack")
+def run_stack():
     path = os.path.join(BASE_DIR, "programs", "stack.py")
     subprocess.Popen(["python", path])
     return "Stack launched"
