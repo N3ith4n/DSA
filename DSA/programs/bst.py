@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox, simpledialog, scrolledtext
 
 FONT_MAIN = ("Segoe UI", 10)
 FONT_TITLE = ("Segoe UI", 11, "bold")
@@ -16,13 +16,11 @@ class Node:
         self.left = None
         self.right = None
 
-###################################################
-# CHANGED: added min_val, max_val parameters
 class TreeUI:
     def __init__(self, root, min_val, max_val):
         self.root = root
         self.root.title("Binary Search Tree Visualizer")
-        self.root.geometry("900x600")
+        self.root.geometry("1000x700") # Increased size slightly for logs
         self.root.configure(bg=BG_MAIN)
 
         self.tree_root = None
@@ -33,13 +31,14 @@ class TreeUI:
         self.max_val = max_val
 
         self.build_ui()
-##############################################
+        self.write_log(f"System Initialized. Range: [{min_val} - {max_val}]")
 
     # UI LAYOUT
     def build_ui(self):
         control_frame = tk.Frame(self.root, bg=PANEL_BG, bd=0)
         control_frame.pack(fill="x", padx=10, pady=10)
 
+        # Left Side: Buttons
         btn_frame = tk.Frame(control_frame, bg=PANEL_BG)
         btn_frame.pack(side="left", padx=10, pady=5)
 
@@ -47,14 +46,22 @@ class TreeUI:
         self.add_button(btn_frame, "Delete Node", self.delete_node)
         self.add_button(btn_frame, "Reset Tree", self.reset_tree)
 
+        # Right Side: Outputs (Traversals + Logs)
         output_frame = tk.Frame(control_frame, bg=PANEL_BG)
-        output_frame.pack(side="right", padx=10)
+        output_frame.pack(side="right", padx=10, pady=5)
 
+        # 1. Traversals Display
         tk.Label(output_frame, text="Traversals:", bg=PANEL_BG, font=FONT_TITLE).pack(anchor="w")
+        self.traversal_text = tk.Text(output_frame, width=50, height=3, font=FONT_MAIN, bg=TEXT_BG, bd=0)
+        self.traversal_text.pack(pady=(0, 10))
 
-        self.traversal_text = tk.Text(output_frame, width=45, height=5, font=FONT_MAIN, bg=TEXT_BG, bd=0)
-        self.traversal_text.pack()
+        # 2. System Logs Display (NEW)
+        tk.Label(output_frame, text="System Log:", bg=PANEL_BG, font=FONT_TITLE).pack(anchor="w")
+        self.log_text = scrolledtext.ScrolledText(output_frame, width=50, height=5, font=("Consolas", 9), bg=TEXT_BG, bd=0)
+        self.log_text.pack()
+        self.log_text.configure(state='disabled') # Read-only by default
 
+        # Canvas for Drawing
         self.canvas = tk.Canvas(self.root, bg="white", highlightthickness=0)
         self.canvas.pack(expand=True, fill="both", padx=10, pady=10)
 
@@ -65,25 +72,38 @@ class TreeUI:
         btn.bind("<Button-1>", lambda e: command())
         btn.bind("<Enter>", lambda e: btn.config(bg=BTN_COLOR_HOVER))
         btn.bind("<Leave>", lambda e: btn.config(bg=BTN_COLOR))
- 
+    
+    # --- LOGGING HELPER ---
+    def write_log(self, message):
+        """Appends a message to the scrolled text widget."""
+        self.log_text.configure(state='normal')  # Enable editing
+        self.log_text.insert(tk.END, f"> {message}\n")  # Append text
+        self.log_text.see(tk.END)  # Auto-scroll to bottom
+        self.log_text.configure(state='disabled')  # Disable editing
+        print(message)  # Backup print to terminal
+
     # BST OPERATIONS
     def insert_node(self):
         val = simpledialog.askinteger("Insert Node", f"Enter a number ({self.min_val} to {self.max_val}):")
         if val is None:
             return
 
-        # NEW: Min / Max validation
+        # Min / Max validation
         if not (self.min_val <= val <= self.max_val):
+            self.write_log(f"❌ Error: {val} is out of range ({self.min_val}-{self.max_val})")
             messagebox.showwarning("Out of Range",
                                    f"Value must be between {self.min_val} and {self.max_val}.")
             return
 
         if self.tree_root is None:
             self.tree_root = Node(val)
+            self.write_log(f"✅ Root initialized with {val}")
         else:
             if not self.bst_insert(self.tree_root, val):
-                messagebox.showwarning("Duplicate", "value alreay exists")
+                self.write_log(f"⚠️ Ignored duplicate: {val}")
+                messagebox.showwarning("Duplicate", "Value already exists")
                 return
+            self.write_log(f"✅ Inserted node: {val}")
 
         self.redraw()
 
@@ -105,13 +125,17 @@ class TreeUI:
 
     def delete_node(self):
         if not self.tree_root:
+            self.write_log("⚠️ Delete failed: Tree is empty")
             return
 
         val = simpledialog.askinteger("Delete Node", "Enter value to delete:")
         if val is None:
             return
 
+        # We can optionally check if value exists before deleting to log better messages
+        # But for now, we just run the delete logic
         self.tree_root = self.delete_bst(self.tree_root, val)
+        self.write_log(f"🗑️ Deleted node attempt: {val}")
         self.redraw()
 
     def delete_bst(self, root, val):
@@ -122,6 +146,7 @@ class TreeUI:
         elif val > root.val:
             root.right = self.delete_bst(root.right, val)
         else:
+            # Node found
             if not root.left:
                 return root.right
             if not root.right:
@@ -141,14 +166,15 @@ class TreeUI:
         self.node_positions.clear()
         self.canvas.delete("all")
         self.traversal_text.delete("1.0", "end")
+        self.write_log("🔄 Tree reset.")
 
-    # DRAW OPERATIONS or create the damn tree
+    # DRAW OPERATIONS
     def redraw(self):
         self.canvas.delete("all")
         self.node_positions.clear()
 
         if self.tree_root:
-            self.calc_positions(self.tree_root, 450, 40, 180)
+            self.calc_positions(self.tree_root, 500, 40, 200) # Centered slightly better
             self.draw_tree(self.tree_root)
 
         self.show_traversals()
@@ -178,7 +204,7 @@ class TreeUI:
         self.canvas.create_oval(x-r, y-r, x+r, y+r, fill="#4C89FF", outline="#204A99")
         self.canvas.create_text(x, y, text=str(node.val), fill="white", font=("Segoe UI", 10, "bold"))
 
-    # traversal logoc
+    # TRAVERSAL LOGIC
     def show_traversals(self):
         inorder, preorder, postorder = [], [], []
         self.in_order(self.tree_root, inorder)
@@ -188,7 +214,7 @@ class TreeUI:
         self.traversal_text.delete("1.0", "end")
         self.traversal_text.insert("end", f"In-Order  (LNR): {inorder}\n")
         self.traversal_text.insert("end", f"Pre-Order (NLR): {preorder}\n")
-        self.traversal_text.insert("end", f"Post-Order(LRN): {postorder}\n") # putangina
+        self.traversal_text.insert("end", f"Post-Order(LRN): {postorder}\n")
 
     def in_order(self, node, arr):
         if node:
@@ -208,8 +234,6 @@ class TreeUI:
             self.post_order(node.right, arr)
             arr.append(node.val)
 
-#################################################
-#changed#
 # START APP - Get input FIRST, then create main window
 if __name__ == "__main__":
     # Create temporary hidden window for dialogs
