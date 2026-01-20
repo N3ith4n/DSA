@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, simpledialog #added simple dialog
+from tkinter import messagebox, simpledialog
 import time
 
 class HanoiApp:
@@ -38,16 +38,30 @@ class HanoiApp:
         for widget in self.main_frame.winfo_children():
             widget.destroy()
 
-        # Top Bar for Controls
-        self.top_bar = tk.Frame(self.main_frame, bg="#d0e1f9", height=50)
+        # --- TOP BAR WITH CONTROLS ---
+        self.top_bar = tk.Frame(self.main_frame, bg="#d0e1f9", height=60)
         self.top_bar.pack(fill=tk.X)
         
-        tk.Button(self.top_bar, text="← Return to Menu", command=self.setup_menu, 
+        tk.Button(self.top_bar, text="← Return", command=self.setup_menu, 
                   bg="#ff6666", fg="white", font=("Arial", 10, "bold")).pack(side=tk.LEFT, padx=10, pady=10)
         
         self.info_label = tk.Label(self.top_bar, text=f"Moves: {self.moves}", 
                                    font=("Arial", 12, "bold"), bg="#d0e1f9")
         self.info_label.pack(side=tk.RIGHT, padx=20)
+
+        # === NEW: SPEED SLIDER (Only for Auto-Solve mode) ===
+        if mode == "S":
+            speed_frame = tk.Frame(self.top_bar, bg="#d0e1f9")
+            speed_frame.pack(side=tk.RIGHT, padx=20)
+            
+            tk.Label(speed_frame, text="Speed:", bg="#d0e1f9", font=("Arial", 9)).pack(side=tk.LEFT)
+            
+            # Scale from 1 (Slow) to 10 (Fast)
+            self.speed_scale = tk.Scale(speed_frame, from_=1, to=10, orient=tk.HORIZONTAL, 
+                                       length=150, bg="#d0e1f9", highlightthickness=0)
+            self.speed_scale.set(5) # Default speed (approx 0.4s)
+            self.speed_scale.pack(side=tk.LEFT, padx=5)
+        # ====================================================
 
         # Game Canvas
         self.canvas = tk.Canvas(self.main_frame, width=600, height=400, bg="#e6f2ff", highlightthickness=0)
@@ -68,16 +82,19 @@ class HanoiApp:
         self.peg_x = [120, 300, 480]
         self.floor_y = 350
         self.disc_height = 25
-        # Draw Floor
         self.canvas.create_rectangle(20, self.floor_y, 580, self.floor_y + 15, fill="#808080", outline="#505050")
-        # Draw Pegs
         for x in self.peg_x:
             self.canvas.create_rectangle(x - 6, 120, x + 6, self.floor_y, fill="#5d5d5d", outline="#333333")
 
     def setup_discs(self):
         colors = ["#ff0000", "#ff8c00", "#ffff00", "#00ff00", "#008000", "#00ffff", "#0000ff", "#8b00ff", "#ff00ff"]
+        
+        # DYNAMIC SIZING FIX (To support n=12 if needed)
+        max_w = 280
+        scale_factor = (max_w - 40) / self.n
+        
         for i in range(self.n, 0, -1):
-            width = 40 + (i * 32)
+            width = 40 + (i * scale_factor)
             color = colors[(i-1) % len(colors)]
             x1 = self.peg_x[0] - width//2
             y1 = self.floor_y - (self.n - i + 1) * self.disc_height
@@ -87,7 +104,6 @@ class HanoiApp:
             self.discs_objs[i] = rect
 
     # --- Interaction Logic ---
-
     def on_click(self, event):
         if self.is_solving: return
         peg_idx = self.get_peg_from_x(event.x)
@@ -99,7 +115,10 @@ class HanoiApp:
     def on_drag(self, event):
         if hasattr(self, 'selected_disc') and self.selected_disc:
             rect = self.discs_objs[self.selected_disc]
-            w = (40 + (self.selected_disc * 32)) // 2
+            # Use stored scale factor or recalculate for dragging visual
+            max_w = 280
+            scale_factor = (max_w - 40) / self.n
+            w = (40 + (self.selected_disc * scale_factor)) // 2
             self.canvas.coords(rect, event.x - w, event.y - 12, event.x + w, event.y + 12)
 
     def on_release(self, event):
@@ -123,11 +142,16 @@ class HanoiApp:
         if disc_size not in self.discs_objs: return
         rect = self.discs_objs[disc_size]
         pos_in_stack = self.pegs[peg_idx].index(disc_size)
-        width = 40 + (disc_size * 32)
+        
+        # Dynamic sizing recalculation
+        max_w = 280
+        scale_factor = (max_w - 40) / self.n
+        width = 40 + (disc_size * scale_factor)
+        
         x1 = self.peg_x[peg_idx] - width//2
         y1 = self.floor_y - (pos_in_stack + 1) * self.disc_height
         self.canvas.coords(rect, x1, y1, x1 + width, y1 + self.disc_height)
-        self.root.update()
+        self.root.update() # Keeps the UI alive for the slider
 
     def get_peg_from_x(self, x):
         if x < 210: return 0
@@ -135,52 +159,48 @@ class HanoiApp:
         return 2
 
     # --- Solver Logic ---
-
     def start_auto_solve(self):
         try:
             self.solve_hanoi(self.n, 0, 2, 1)
             if self.is_solving:
                 messagebox.showinfo("Done", "The computer has finished.")
                 self.setup_menu()
-        except tk.TclError: # Handles case where window is closed during recursion
+        except tk.TclError: 
             pass
 
     def solve_hanoi(self, n, source, target, auxiliary):
-        if not self.is_solving: return # Exit if user returned to menu
+        if not self.is_solving: return 
         if n > 0:
             self.solve_hanoi(n - 1, source, auxiliary, target)
-            if not self.is_solving: return
+            if not self.is_solving: return 
             
             disc = self.pegs[source].pop()
             self.pegs[target].append(disc)
             self.moves += 1
             self.info_label.config(text=f"Auto-Solving... Moves: {self.moves}")
             self.update_disc_pos(disc, target)
-            time.sleep(0.4) 
+            
+            # === DYNAMIC DELAY LOGIC ===
+            # Slider 1 = Slow (0.8s), Slider 10 = Fast (0.0s)
+            if hasattr(self, 'speed_scale'):
+                speed = self.speed_scale.get()
+                # Inverse relationship: Higher speed = Lower delay
+                delay = max(0.0, 0.8 - (speed * 0.08)) 
+                time.sleep(delay)
+            else:
+                time.sleep(0.4)
+            # ===========================
             
             self.solve_hanoi(n - 1, auxiliary, target, source)
 
-
-################################################################
-#changed#
 if __name__ == "__main__":
-    # Create temporary root for input dialog
     temp_root = tk.Tk()
     temp_root.withdraw()
-    
-    # Force dialog to appear on top
-    temp_root.attributes('-alpha', 0.0)
-    temp_root.update()
-    temp_root.deiconify()
-    temp_root.attributes('-alpha', 1.0)
-    temp_root.after(1, lambda: temp_root.focus_force())
     temp_root.attributes('-topmost', True)
-    temp_root.lift()
-    temp_root.focus_force()
     
-    # Ask for number of discs
-    num_discs = simpledialog.askinteger("Tower of Hanoi", "Enter number of discs (1-9):", 
-                                        minvalue=1, maxvalue=9, parent=temp_root)
+    
+    num_discs = simpledialog.askinteger("Tower of Hanoi", "Enter number of discs (1-12):", 
+                                        minvalue=1, maxvalue=12, parent=temp_root)
     
     if num_discs is None:
         temp_root.destroy()
@@ -188,7 +208,6 @@ if __name__ == "__main__":
     
     temp_root.destroy()
     
-    # Create main window with aggressive window forcing
     root = tk.Tk()
     root.geometry("600x550")
     root.resizable(False, False)
