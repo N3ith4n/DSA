@@ -22,12 +22,6 @@ def run_bst():
     subprocess.Popen(["python", path])
     return "BST launched"
 
-@app.route("/run/queue")
-def run_queue():
-    path = os.path.join(BASE_DIR, "programs", "queue.py")
-    subprocess.Popen(["python", path])
-    return "Queue launched"
-
 @app.route("/run/parking.2")  # Queue
 def run_parking_queue():
     path = os.path.join(BASE_DIR, "programs", "queue.py")
@@ -40,11 +34,11 @@ def run_parking():
     subprocess.Popen(["python", path])
     return "Stack launched"
 
-@app.route("/run/stack")
-def run_stack():
-    path = os.path.join(BASE_DIR, "programs", "stack.py")
+@app.route("/run/hanoi")
+def run_hanoi():
+    path = os.path.join(BASE_DIR, "programs", "tower_of_hanoi.py")
     subprocess.Popen(["python", path])
-    return "Stack launched"
+    return "Tower of Hanoi launched"
 
 if __name__ == "__main__":
     app.run(port=5000)
