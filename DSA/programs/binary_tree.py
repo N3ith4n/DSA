@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import simpledialog, messagebox
+from tkinter import simpledialog, messagebox, scrolledtext
 from collections import deque
 
 class Node:
@@ -60,15 +60,16 @@ class TreeApp:
 
         self.win = tk.Tk()
         self.win.title("DSA Binary Tree Visualizer")
-        self.win.geometry("1100x700")
+        self.win.geometry("1100x750") # Increased height slightly
         self.win.configure(bg=self.bg_dark)
 
         # UI Layout: Main Canvas and Side Control Panel
-        self.canvas = tk.Canvas(self.win, width=850, height=700, bg=self.bg_dark, highlightthickness=0)
+        self.canvas = tk.Canvas(self.win, width=800, height=750, bg=self.bg_dark, highlightthickness=0)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        self.sidebar = tk.Frame(self.win, width=250, bg=self.bg_panel, padx=20, pady=20)
+        self.sidebar = tk.Frame(self.win, width=300, bg=self.bg_panel, padx=20, pady=20)
         self.sidebar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.sidebar.pack_propagate(False) # Prevent sidebar from shrinking
 
         self.setup_sidebar()
         self.draw_tree()
@@ -76,17 +77,20 @@ class TreeApp:
         self.canvas.bind("<Button-1>", self.on_click)
         self.canvas.bind("<Button-3>", self.on_right_click)
         
+        self.write_log("System initialized.")
+        self.write_log(f"Range: {self.min_val} - {self.max_val}")
+        
         self.win.mainloop()
 
     def setup_sidebar(self):
         # Header
         tk.Label(self.sidebar, text="CONTROLS", font=("Segoe UI", 14, "bold"), 
-                 bg=self.bg_panel, fg=self.accent).pack(pady=(0, 20))
+                 bg=self.bg_panel, fg=self.accent).pack(pady=(0, 10))
 
         # Instructions
         instr = "Left Click: Add Value\nRight Click: Clear Node"
         tk.Label(self.sidebar, text=instr, font=("Segoe UI", 9), bg=self.bg_panel, 
-                 fg="#a0a0a0", justify=tk.LEFT).pack(pady=(0, 20))
+                 fg="#a0a0a0", justify=tk.CENTER).pack(pady=(0, 20))
 
         # Traversal Buttons
         self.add_side_button("Inorder (LTR)", self.show_inorder)
@@ -97,6 +101,18 @@ class TreeApp:
 
         # BST Operations
         self.add_side_button("BST Auto-Insert", self.bst_insert_prompt, color="#43a047")
+        
+        tk.Frame(self.sidebar, height=2, bg="#444").pack(fill=tk.X, pady=15)
+
+        # --- LOGGING AREA ---
+        tk.Label(self.sidebar, text="System Logs", font=("Segoe UI", 10, "bold"), 
+                 bg=self.bg_panel, fg=self.accent).pack(anchor="w", pady=(0, 5))
+        
+        self.log_area = scrolledtext.ScrolledText(self.sidebar, height=15, 
+                                                 bg="#181825", fg="#a6accd", 
+                                                 font=("Consolas", 9), relief=tk.FLAT)
+        self.log_area.pack(fill=tk.BOTH, expand=True)
+        self.log_area.configure(state='disabled')
 
     def add_side_button(self, text, command, color=None):
         btn = tk.Button(self.sidebar, text=text, command=command, 
@@ -105,10 +121,19 @@ class TreeApp:
                         padx=10, pady=8, cursor="hand2")
         btn.pack(fill=tk.X, pady=5)
 
+    def write_log(self, message):
+        """Adds a message to the sidebar log area."""
+        self.log_area.configure(state='normal')
+        self.log_area.insert(tk.END, f"> {message}\n")
+        self.log_area.see(tk.END)
+        self.log_area.configure(state='disabled')
+        print(message) # Keep terminal output as backup
+
     def draw_tree(self):
         levels = self.get_levels(self.root_node)
         spacing_y = 120
-        canvas_width = 850
+        canvas_width = self.canvas.winfo_width()
+        if canvas_width < 100: canvas_width = 800
 
         for depth, nodes in enumerate(levels):
             spacing_x = canvas_width // (len(nodes) + 1)
@@ -119,6 +144,14 @@ class TreeApp:
         self.canvas.delete("all")
         self.draw_connections(self.root_node)
         self.draw_nodes(self.root_node)
+        
+    def check_duplicate(self, node, value):
+        """Recursively checks if a value exists anywhere in the tree."""
+        if not node: 
+            return False
+        if node.value == value: 
+            return True
+        return self.check_duplicate(node.left, value) or self.check_duplicate(node.right, value)
 
     def get_levels(self, root):
         levels = []
@@ -158,19 +191,36 @@ class TreeApp:
 
     def on_click(self, event):
         clicked_node = self.find_clicked_node(self.root_node, event.x, event.y)
+        
         if clicked_node:
+            # Get input from user
             value = simpledialog.askinteger("Input", f"Enter ({self.min_val}-{self.max_val}):")
+            
             if value is not None:
-                if self.min_val <= value <= self.max_val:
-                    clicked_node.value = value
-                    self.draw_tree()
-                else:
+                # 1. Check Range
+                if not (self.min_val <= value <= self.max_val):
+                    self.write_log(f"Error: {value} is out of range")
                     messagebox.showerror("Error", "Out of range")
+                    return
+
+                # 2. Check Duplicates (Skip check if user entered the same number that was already there)
+                if value != clicked_node.value and self.check_duplicate(self.root_node, value):
+                    self.write_log(f"Error: {value} already exists!")
+                    messagebox.showwarning("Duplicate", f"The value {value} is already in the tree.")
+                    return
+
+                # 3. Success - Update Node
+                prev_val = clicked_node.value
+                clicked_node.value = value
+                self.write_log(f"Manual Update: Changed {prev_val} to {value}")
+                self.draw_tree()
 
     def on_right_click(self, event):
         clicked_node = self.find_clicked_node(self.root_node, event.x, event.y)
         if clicked_node:
+            prev_val = clicked_node.value
             clicked_node.value = None
+            self.write_log(f"Cleared Node (was {prev_val})")
             self.draw_tree()
 
     def find_clicked_node(self, node, x, y):
@@ -192,27 +242,38 @@ class TreeApp:
     def bst_insert_prompt(self):
         val = simpledialog.askinteger("BST Insert", "Value:")
         if val is not None:
-            if not self.bst_insert(self.root_node, val):
-                messagebox.showwarning("Warning", "Could not insert (Duplicate or no space)")
-            self.draw_tree()
+            if self.min_val <= val <= self.max_val:
+                if self.bst_insert(self.root_node, val):
+                    self.write_log(f"BST Inserted: {val}")
+                    self.draw_tree()
+                else:
+                    self.write_log(f"Insert Failed: {val} (Duplicate or No Space)")
+                    messagebox.showwarning("Warning", "Could not insert (Duplicate or no space)")
+            else:
+                self.write_log(f"Insert Failed: {val} (Out of Range)")
+                messagebox.showerror("Error", "Out of range")
 
     def show_inorder(self):
         arr = []
         inorder(self.root_node, arr)
-        messagebox.showinfo("Inorder Traversal", " , ".join(map(str, arr)))
+        res = " , ".join(map(str, arr))
+        self.write_log(f"Inorder: [{res}]")
+        messagebox.showinfo("Inorder Traversal", res)
 
     def show_preorder(self):
         arr = []
         preorder(self.root_node, arr)
-        messagebox.showinfo("Preorder Traversal", " , ".join(map(str, arr)))
+        res = " , ".join(map(str, arr))
+        self.write_log(f"Preorder: [{res}]")
+        messagebox.showinfo("Preorder Traversal", res)
 
     def show_postorder(self):
         arr = []
         postorder(self.root_node, arr)
-        messagebox.showinfo("Postorder Traversal", " , ".join(map(str, arr)))
+        res = " , ".join(map(str, arr))
+        self.write_log(f"Postorder: [{res}]")
+        messagebox.showinfo("Postorder Traversal", res)
 
-###########################################################################################
-##Changed##
 if __name__ == "__main__":
     from tkinter import simpledialog
     
@@ -220,19 +281,19 @@ if __name__ == "__main__":
     temp_root = tk.Tk()
     temp_root.withdraw()  # Hide the temporary window
     
-    # Force window to appear on top (Windows-specific aggressive approach)
+    # Force window to appear on top
     temp_root.attributes('-topmost', True)
-    temp_root.attributes('-alpha', 0.0)  # Make invisible temporarily
+    temp_root.attributes('-alpha', 0.0) 
     temp_root.update()
-    temp_root.deiconify()  # Show window
-    temp_root.attributes('-alpha', 1.0)  # Make visible
+    temp_root.deiconify() 
+    temp_root.attributes('-alpha', 1.0) 
     temp_root.lift()
     temp_root.focus_force()
-    temp_root.after(1, lambda: temp_root.focus_force())  # Force focus again after a delay
+    temp_root.after(1, lambda: temp_root.focus_force()) 
     
     try:
         lvls = simpledialog.askinteger("Setup", "Input desired level of Binary tree:", 
-                                       minvalue=1, maxvalue=5, parent=temp_root)
+                                      minvalue=1, maxvalue=5, parent=temp_root)
         if lvls is None:
             temp_root.destroy()
             exit()
