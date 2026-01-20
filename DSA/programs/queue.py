@@ -46,13 +46,13 @@ def depart_middle(queue, target_plate, current_departures):
 class GarageUI:
     def __init__(self, root):
         import tkinter as tk
-        from tkinter import simpledialog, messagebox
+        from tkinter import simpledialog, messagebox, scrolledtext
         
         global garage_queue, total_arrivals, total_departures
         
         self.root = root
         self.root.title("FIFO GARAGE (Queue)")
-        self.root.geometry("700x400")
+        self.root.geometry("700x550")  # Increased height for log
         self.root.configure(bg="#f0f0f0")
         
         tk.Label(root, text="FIFO GARAGE (Queue)", font=("Arial", 16, "bold"),
@@ -62,7 +62,19 @@ class GarageUI:
         self.stats_label.pack()
         
         self.canvas = tk.Canvas(root, bg="white", height=150, highlightthickness=1)
-        self.canvas.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        self.canvas.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # Terminal/Log display
+        log_frame = tk.Frame(root, bg="#f0f0f0")
+        log_frame.pack(fill=tk.BOTH, padx=20, pady=(0, 10))
+        
+        tk.Label(log_frame, text="Terminal Log:", font=("Arial", 10, "bold"),
+                bg="#f0f0f0").pack(anchor=tk.W)
+        
+        self.log_text = scrolledtext.ScrolledText(log_frame, height=6, font=("Consolas", 9),
+                                                  bg="#1a1a1a", fg="#00ff00", wrap=tk.WORD)
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+        self.log_text.config(state=tk.DISABLED)
         
         btn_frame = tk.Frame(root, bg="#f0f0f0")
         btn_frame.pack(pady=10)
@@ -74,7 +86,15 @@ class GarageUI:
         tk.Button(btn_frame, text="Reset", command=self.reset_garage,
                  font=("Arial", 10), padx=15, pady=5).pack(side=tk.LEFT, padx=5)
         
+        self.log("System ready. FIFO GARAGE (Queue) initialized.")
         self.update_display()
+    
+    def log(self, message):
+        """Add message to terminal log"""
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.insert(tk.END, message + "\n")
+        self.log_text.see(tk.END)
+        self.log_text.config(state=tk.DISABLED)
     
     def arrive_action(self):
         from tkinter import simpledialog, messagebox
@@ -84,7 +104,12 @@ class GarageUI:
         if plate:
             plate = plate.strip()
             if plate:
-                total_arrivals = arrive(garage_queue, plate, total_arrivals)
+                plate_upper = plate.upper()
+                if len(garage_queue) < garage_capacity:
+                    total_arrivals = arrive(garage_queue, plate, total_arrivals)
+                    self.log(f"✅ {plate_upper} joined the queue.")
+                else:
+                    self.log("❌ Garage is full!")
                 self.update_display()
     
     def depart_action(self):
@@ -92,7 +117,7 @@ class GarageUI:
         global garage_queue, total_departures
         
         if not garage_queue:
-            print("📭 Empty.")
+            self.log("📭 Empty.")
             messagebox.showinfo("Empty", "📭 Empty.")
             return
         
@@ -100,7 +125,34 @@ class GarageUI:
         if target:
             target = target.strip()
             if target:
-                total_departures = depart_middle(garage_queue, target, total_departures)
+                target_upper = target.upper()
+                if target_upper not in garage_queue:
+                    self.log(f"❓ Error: Car '{target_upper}' not found.")
+                    return
+                
+                # Track operations for logging
+                temp_buffer = []
+                ops = 0
+                found = False
+                
+                while garage_queue:
+                    current = garage_queue.pop()
+                    ops += 1
+                    if current == target_upper:
+                        total_departures += 1
+                        found = True
+                        self.log(f"🎯 {target_upper} exited the front.")
+                        break
+                    else:
+                        temp_buffer.append(current)
+                
+                while temp_buffer:
+                    garage_queue.append(temp_buffer.pop(0))
+                    ops += 1
+                
+                if found:
+                    self.log(f"📊 Total Moves: {ops}")
+                
                 self.update_display()
     
     def reset_garage(self):
@@ -108,6 +160,7 @@ class GarageUI:
         garage_queue.clear()
         total_arrivals = 0
         total_departures = 0
+        self.log("🔄 Garage reset. All data cleared.")
         self.update_display()
     
     def update_display(self):
